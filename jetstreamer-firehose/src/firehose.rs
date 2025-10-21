@@ -679,44 +679,55 @@ where
                             epoch_num,
                             block.slot
                         );
-                        let mut slot = block.slot;
+                        let slot = block.slot;
                         if slot >= slot_range.end {
                             log::info!(target: &log_target, "reached end of slot range at slot {}", slot);
                             // Return early to terminate the firehose thread cleanly. We use >=
                             // because slot_range is half-open [start, end), so any slot equal
                             // to end is out-of-range and must not be processed.
 
-                            // still need to emit skipped slots up to end-1
-                            slot = slot_range.end;
-                            if let (Some(on_block_cb), Some(previous_slot)) =
-                                (on_block.as_ref(), previous_slot)
-                            {
-                                for skipped_slot in (previous_slot + 2)..slot {
-                                    log::debug!(
-                                        target: &log_target,
-                                        "leader skipped slot {} (previous slot {}, current slot {})",
-                                        skipped_slot,
-                                        previous_slot,
-                                        slot,
-                                    );
-                                    if block_enabled {
-                                        on_block_cb(
-                                            thread_index,
-                                            BlockData::LeaderSkipped { slot: skipped_slot },
-                                        )
-                                        .await
-                                        .map_err(|e| FirehoseError::BlockHandlerError(e))
-                                        .map_err(|e| (e, current_slot.unwrap_or(slot_range.start)))?;
+                            let target_last_slot = slot_range.end.saturating_sub(1);
+                            let skip_start_from_previous = previous_slot
+                                .map(|s| s.saturating_add(1))
+                                .unwrap_or(slot_range.start);
+                            let first_untracked_slot = last_counted_slot.saturating_add(1);
+                            let skip_start = std::cmp::max(skip_start_from_previous, first_untracked_slot);
+
+                            if skip_start <= target_last_slot {
+                                if block_enabled {
+                                    if let Some(on_block_cb) = on_block.as_ref() {
+                                        for skipped_slot in skip_start..=target_last_slot {
+                                            log::debug!(
+                                                target: &log_target,
+                                                "leader skipped slot {} (prev_counted {}, target {})",
+                                                skipped_slot,
+                                                last_counted_slot,
+                                                target_last_slot,
+                                            );
+                                            on_block_cb(
+                                                thread_index,
+                                                BlockData::LeaderSkipped { slot: skipped_slot },
+                                            )
+                                            .await
+                                            .map_err(|e| FirehoseError::BlockHandlerError(e))
+                                            .map_err(|e| (e, current_slot.unwrap_or(slot_range.start)))?;
+                                        }
                                     }
-                                    if let Some(ref mut stats) = thread_stats {
-                                        stats.leader_skipped_slots += 1;
-                                        stats.slots_processed += 1;
-                                        stats.current_slot = skipped_slot;
-                                    }
-                                    slots_since_stats.fetch_add(1, Ordering::Relaxed);
-                                    fetch_add_if(tracking_enabled, &overall_slots_processed, 1);
                                 }
+
+                                let missing_slots = target_last_slot.saturating_sub(skip_start) + 1;
+                                if tracking_enabled {
+                                    if let Some(ref mut stats) = thread_stats {
+                                        stats.leader_skipped_slots += missing_slots;
+                                        stats.slots_processed += missing_slots;
+                                        stats.current_slot = target_last_slot;
+                                    }
+                                    overall_slots_processed.fetch_add(missing_slots, Ordering::Relaxed);
+                                    slots_since_stats.fetch_add(missing_slots, Ordering::Relaxed);
+                                }
+                                last_counted_slot = target_last_slot;
                             }
+
                             return Ok(());
                         }
                         debug_assert!(slot < slot_range.end, "processing out-of-range slot {} (end {})", slot, slot_range.end);
@@ -989,6 +1000,19 @@ where
                                             stats.current_slot = skipped_slot;
                                         }
                                         newly_skipped_slots = newly_skipped_slots.saturating_add(1);
+                                    }
+
+                                    let block_is_new = slot > prev_last_counted_slot;
+
+                                    if !block_is_new {
+                                        log::debug!(
+                                            target: &log_target,
+                                            "duplicate block {}, already counted (last_counted={})",
+                                            slot,
+                                            prev_last_counted_slot,
+                                        );
+                                        this_block_rewards.clear();
+                                        continue;
                                     }
 
                                     if block_enabled {
@@ -1271,6 +1295,42 @@ where
                                 log::debug!(target: &log_target, "threads with errors: {}", summary);
                             }
                             return Ok(());
+                        }
+                    }
+                    if let Some(expected_last_slot) = slot_range.end.checked_sub(1) {
+                        if last_counted_slot < expected_last_slot {
+                            let flush_start = last_counted_slot.saturating_add(1);
+                            if block_enabled {
+                                if let Some(on_block_cb) = on_block.as_ref() {
+                                    let error_slot = current_slot.unwrap_or(slot_range.start);
+                                    for skipped_slot in flush_start..=expected_last_slot {
+                                        log::debug!(
+                                            target: &log_target,
+                                            "leader skipped slot {} during final flush (prev_counted {})",
+                                            skipped_slot,
+                                            last_counted_slot,
+                                        );
+                                        on_block_cb(
+                                            thread_index,
+                                            BlockData::LeaderSkipped { slot: skipped_slot },
+                                        )
+                                        .await
+                                        .map_err(|e| FirehoseError::BlockHandlerError(e))
+                                        .map_err(|e| (e, error_slot))?;
+                                    }
+                                }
+                            }
+                            let missing_slots = expected_last_slot.saturating_sub(last_counted_slot);
+                            if tracking_enabled {
+                                if let Some(stats_ref) = thread_stats.as_mut() {
+                                    stats_ref.leader_skipped_slots += missing_slots;
+                                    stats_ref.slots_processed += missing_slots;
+                                    stats_ref.current_slot = expected_last_slot;
+                                }
+                                overall_slots_processed.fetch_add(missing_slots, Ordering::Relaxed);
+                                slots_since_stats.fetch_add(missing_slots, Ordering::Relaxed);
+                            }
+                            last_counted_slot = expected_last_slot;
                         }
                     }
                     if let Some(ref mut stats) = thread_stats {
