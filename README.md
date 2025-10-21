@@ -100,6 +100,12 @@ transactions and blocks.
 Note that Jetstreamer's firehose and underlying interface emits events for leader-skipped
 blocks, unlike traditional geyser.
 
+Also note that because Jetstreamer spawns parallel threads that process different subranges of
+the overall slot range at the same time, while each thread sees a purely sequential view of
+transactions, downstream services such as databases that consume this data will see writes in a
+fairly arbitrary order, so you should design your database tables and shared data structures
+accordingly.
+
 ```rust
 use std::sync::Arc;
 

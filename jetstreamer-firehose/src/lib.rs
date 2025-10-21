@@ -37,12 +37,21 @@
 //!
 //! | Epoch range | Slot range    | Comment |
 //! |-------------|---------------|--------------------------------------------------|
-//! | 0–156       | 0–?           | Incompatible with modern Geyser plugins           |
-//! | 157+        | ?             | Compatible with modern Geyser plugins             |
-//! | 0–449       | 0–194184610   | CU tracking not available (reported as `0`)       |
-//! | 450+        | 194184611+    | CU tracking fully available                       |
+//! | 0–156       | 0–?           | Incompatible with modern Geyser plugins          |
+//! | 157+        | ?             | Compatible with modern Geyser plugins            |
+//! | 0–449       | 0–194184610   | CU tracking not available (reported as `0`)      |
+//! | 450+        | 194184611+    | CU tracking fully available                      |
 //!
 //! Detailed helpers for translating between epochs and slots live in the [`epochs`] module.
+//!
+//! # Ordering Guarantees
+//! Because [`firehose`] spawns parallel threads that process different subranges of the
+//! overall slot range at the same time, while each thread sees a purely sequential view of
+//! transactions, downstream services such as databases that consume this data will see writes
+//! in a fairly arbitrary order, so you should design your database tables and shared data
+//! structures accordingly. The best pattern is to aggregate data on some interval on a
+//! thread-local, per-thread basis and periodically flush the aggregated data to the shared
+//! downstream service or data structure.
 //!
 //! # Examples
 //! Run the firehose with handlers for every data type:

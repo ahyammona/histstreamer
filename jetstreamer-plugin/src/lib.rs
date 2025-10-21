@@ -40,6 +40,13 @@
 //! insert every 1,000 slots. Adopting a similar strategy keeps long-running replays responsive
 //! even under peak throughput.
 //!
+//! # Ordering Guarantees
+//! Also note that because Jetstreamer spawns parallel threads that process different subranges of
+//! the overall slot range at the same time, while each thread sees a purely sequential view of
+//! transactions, downstream services such as databases that consume this data will see writes in a
+//! fairly arbitrary order, so you should design your database tables and shared data structures
+//! accordingly.
+//!
 //! # Examples
 //! ## Defining a Plugin
 //! ```no_run
