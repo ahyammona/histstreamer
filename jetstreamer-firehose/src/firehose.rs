@@ -694,8 +694,8 @@ where
                             let skip_start = std::cmp::max(skip_start_from_previous, first_untracked_slot);
 
                             if skip_start <= target_last_slot {
-                                if block_enabled {
-                                    if let Some(on_block_cb) = on_block.as_ref() {
+                                if block_enabled
+                                    && let Some(on_block_cb) = on_block.as_ref() {
                                         for skipped_slot in skip_start..=target_last_slot {
                                             log::debug!(
                                                 target: &log_target,
@@ -713,7 +713,6 @@ where
                                             .map_err(|e| (e, current_slot.unwrap_or(slot_range.start)))?;
                                         }
                                     }
-                                }
 
                                 let missing_slots = target_last_slot.saturating_sub(skip_start) + 1;
                                 if tracking_enabled {
@@ -978,8 +977,8 @@ where
                                             prev_last_counted_slot,
                                             slot,
                                         );
-                                        if block_enabled {
-                                            if let Some(on_block_cb) = on_block.as_ref() {
+                                        if block_enabled
+                                            && let Some(on_block_cb) = on_block.as_ref() {
                                                 on_block_cb(
                                                     thread_index,
                                                     BlockData::LeaderSkipped {
@@ -994,7 +993,6 @@ where
                                                     )
                                                 })?;
                                             }
-                                        }
                                         if tracking_enabled {
                                             overall_slots_processed.fetch_add(1, Ordering::Relaxed);
                                             slots_since_stats.fetch_add(1, Ordering::Relaxed);
@@ -1065,9 +1063,8 @@ where
 
                                         if let (Some(stats_tracking_cfg), Some(thread_stats_ref)) =
                                             (&stats_tracking, thread_stats.as_mut())
-                                        {
-                                            if slot % stats_tracking_cfg.tracking_interval_slots == 0 {
-                                                if let Err(err) = maybe_emit_stats(
+                                            && slot % stats_tracking_cfg.tracking_interval_slots == 0
+                                                && let Err(err) = maybe_emit_stats(
                                                     stats_tracking.as_ref(),
                                                     thread_index,
                                                     thread_stats_ref,
@@ -1108,8 +1105,6 @@ where
                                                     last_counted_slot = prev_last_counted_slot;
                                                     return Err(err);
                                                 }
-                                            }
-                                        }
                                     }
 
                                     last_counted_slot = slot;
@@ -1240,12 +1235,12 @@ where
                             return Ok(());
                         }
                     }
-                    if tracking_enabled {
-                        if let Some(expected_last_slot) = slot_range.end.checked_sub(1) {
-                            if last_counted_slot < expected_last_slot {
+                    if tracking_enabled
+                        && let Some(expected_last_slot) = slot_range.end.checked_sub(1)
+                            && last_counted_slot < expected_last_slot {
                                 let flush_start = last_counted_slot.saturating_add(1);
-                                if block_enabled {
-                                    if let Some(on_block_cb) = on_block.as_ref() {
+                                if block_enabled
+                                    && let Some(on_block_cb) = on_block.as_ref() {
                                         let error_slot = current_slot.unwrap_or(slot_range.start);
                                         for skipped_slot in flush_start..=expected_last_slot {
                                             log::debug!(
@@ -1263,7 +1258,6 @@ where
                                             .map_err(|e| (e, error_slot))?;
                                         }
                                     }
-                                }
                                 let missing_slots = expected_last_slot.saturating_sub(last_counted_slot);
                                 if let Some(stats_ref) = thread_stats.as_mut() {
                                     stats_ref.leader_skipped_slots += missing_slots;
@@ -1274,8 +1268,6 @@ where
                                 slots_since_stats.fetch_add(missing_slots, Ordering::Relaxed);
                                 last_counted_slot = expected_last_slot;
                             }
-                        }
-                    }
                     if let Some(ref mut stats) = thread_stats {
                         stats.finish_time = Some(std::time::Instant::now());
                         maybe_emit_stats(
