@@ -7,6 +7,8 @@ version.workspace = true
 authors.workspace = true
 license.workspace = true
 default-run = "jetstreamer-firehose"
+repository.workspace = true
+documentation.workspace = true
 
 [features]
 default = []

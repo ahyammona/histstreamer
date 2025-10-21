@@ -6,6 +6,8 @@ edition = "2024"
 version = "0.1.0"
 authors = ["sam0x17", "anza-team"]
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/anza-xyz/jetstreamer"
+documentation = "https://docs.rs/jetstreamer/latest"
 keywords = ["solana", "geyser", "jetstreamer", "firehose", "transaction"]
 
 [package]
