@@ -506,8 +506,9 @@ pub fn parse_cli_args() -> Result<Config, Box<dyn std::error::Error>> {
     } else {
         let epoch: u64 = first_arg.parse().expect("failed to parse epoch");
         log::info!("epoch: {}", epoch);
-        let (start_slot, end_slot) = jetstreamer_firehose::epochs::epoch_to_slot_range(epoch);
-        start_slot..end_slot
+        let (start_slot, end_slot_inclusive) =
+            jetstreamer_firehose::epochs::epoch_to_slot_range(epoch);
+        start_slot..(end_slot_inclusive + 1)
     };
 
     let clickhouse_settings = resolve_clickhouse_settings(true);

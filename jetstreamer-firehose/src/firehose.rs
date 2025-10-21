@@ -964,13 +964,12 @@ where
                                         )
                                     });
 
-                                    let skip_start_from_previous =
-                                        previous_slot.map(|s| s.saturating_add(1)).unwrap_or(slot);
-                                    let first_untracked_slot = prev_last_counted_slot.saturating_add(1);
-                                    let skip_start =
-                                        std::cmp::max(skip_start_from_previous, first_untracked_slot);
+                                    let next_expected_slot = prev_last_counted_slot.saturating_add(1);
+                                    let skip_start_from_previous = previous_slot
+                                        .map(|s| s.saturating_add(1))
+                                        .unwrap_or(next_expected_slot);
+                                    let skip_start = skip_start_from_previous.max(next_expected_slot);
 
-                                    let mut newly_skipped_slots: u64 = 0;
                                     for skipped_slot in skip_start..slot {
                                         log::debug!(
                                             target: &log_target,
@@ -996,20 +995,24 @@ where
                                                 })?;
                                             }
                                         }
-                                        if let Some(ref mut stats) = thread_stats {
-                                            stats.current_slot = skipped_slot;
+                                        if tracking_enabled {
+                                            overall_slots_processed.fetch_add(1, Ordering::Relaxed);
+                                            slots_since_stats.fetch_add(1, Ordering::Relaxed);
+                                            if let Some(ref mut stats) = thread_stats {
+                                                stats.leader_skipped_slots += 1;
+                                                stats.slots_processed += 1;
+                                                stats.current_slot = skipped_slot;
+                                            }
                                         }
-                                        newly_skipped_slots = newly_skipped_slots.saturating_add(1);
+                                        last_counted_slot = skipped_slot;
                                     }
 
-                                    let block_is_new = slot > prev_last_counted_slot;
-
-                                    if !block_is_new {
+                                    if slot <= last_counted_slot {
                                         log::debug!(
                                             target: &log_target,
                                             "duplicate block {}, already counted (last_counted={})",
                                             slot,
-                                            prev_last_counted_slot,
+                                            last_counted_slot,
                                         );
                                         this_block_rewards.clear();
                                         continue;
@@ -1049,127 +1052,67 @@ where
                                     }
                                     previous_blockhash = latest_entry_blockhash;
 
-                                    let block_delta = if slot > prev_last_counted_slot { 1 } else { 0 };
-                                    let slot_delta = newly_skipped_slots.saturating_add(block_delta);
-                                    let leader_skip_delta = newly_skipped_slots;
-
-                                    if slot_delta > 0 {
-                                        last_counted_slot =
-                                            prev_last_counted_slot.saturating_add(slot_delta);
-                                    }
-
                                     if tracking_enabled {
+                                        overall_slots_processed.fetch_add(1, Ordering::Relaxed);
+                                        overall_blocks_processed.fetch_add(1, Ordering::Relaxed);
+                                        slots_since_stats.fetch_add(1, Ordering::Relaxed);
+                                        blocks_since_stats.fetch_add(1, Ordering::Relaxed);
                                         if let Some(ref mut stats) = thread_stats {
-                                            if leader_skip_delta > 0 {
-                                                stats.leader_skipped_slots += leader_skip_delta;
-                                            }
-                                            if slot_delta > 0 {
-                                            	    stats.slots_processed += slot_delta;
-                                                if block_delta > 0 {
-                                                    stats.current_slot = slot;
-                                                }
-                                            }
-                                            if block_delta > 0 {
-                                                stats.blocks_processed += 1;
-                                            }
+                                            stats.blocks_processed += 1;
+                                            stats.slots_processed += 1;
+                                            stats.current_slot = slot;
                                         }
 
-                                        if slot_delta > 0 {
-                                            overall_slots_processed
-                                                .fetch_add(slot_delta, Ordering::Relaxed);
-                                            slots_since_stats.fetch_add(slot_delta, Ordering::Relaxed);
-                                        }
-                                        if block_delta > 0 {
-                                            overall_blocks_processed.fetch_add(1, Ordering::Relaxed);
-                                            blocks_since_stats.fetch_add(1, Ordering::Relaxed);
-                                        }
-
-                                        if block_delta > 0 {
-                                            if let (Some(stats_tracking_tmp), Some(thread_stats_ref)) =
-                                                (stats_tracking.as_ref(), thread_stats.as_mut())
-                                            {
-                                                if slot
-                                                    % stats_tracking_tmp.tracking_interval_slots
-                                                    == 0
+                                        if let (Some(stats_tracking_cfg), Some(thread_stats_ref)) =
+                                            (&stats_tracking, thread_stats.as_mut())
+                                        {
+                                            if slot % stats_tracking_cfg.tracking_interval_slots == 0 {
+                                                if let Err(err) = maybe_emit_stats(
+                                                    stats_tracking.as_ref(),
+                                                    thread_index,
+                                                    thread_stats_ref,
+                                                    &overall_slots_processed,
+                                                    &overall_blocks_processed,
+                                                    &overall_transactions_processed,
+                                                    &overall_entries_processed,
+                                                    &transactions_since_stats,
+                                                    &blocks_since_stats,
+                                                    &slots_since_stats,
+                                                    &last_pulse,
+                                                    start_time,
+                                                )
+                                                .await
                                                 {
-                                                    if let Err(err) = maybe_emit_stats(
-                                                        stats_tracking.as_ref(),
-                                                        thread_index,
-                                                        thread_stats_ref,
-                                                        &overall_slots_processed,
-                                                        &overall_blocks_processed,
-                                                        &overall_transactions_processed,
-                                                        &overall_entries_processed,
-                                                        &transactions_since_stats,
-                                                        &blocks_since_stats,
-                                                        &slots_since_stats,
-                                                        &last_pulse,
-                                                        start_time,
-                                                    )
-                                                    .await
+                                                    blocks_since_stats.fetch_sub(1, Ordering::Relaxed);
+                                                    slots_since_stats.fetch_sub(1, Ordering::Relaxed);
+                                                    overall_blocks_processed
+                                                        .fetch_sub(1, Ordering::Relaxed);
+                                                    overall_slots_processed
+                                                        .fetch_sub(1, Ordering::Relaxed);
+                                                    if let Some((
+                                                        prev_slots_processed,
+                                                        prev_blocks_processed,
+                                                        prev_leader_skipped,
+                                                        prev_current_slot,
+                                                    )) = thread_stats_snapshot
                                                     {
-                                                        blocks_since_stats
-                                                            .fetch_sub(1, Ordering::Relaxed);
-                                                        overall_blocks_processed
-                                                            .fetch_sub(1, Ordering::Relaxed);
-                                                        if slot_delta > 0 {
-                                                            slots_since_stats.fetch_sub(
-                                                                slot_delta,
-                                                                Ordering::Relaxed,
-                                                            );
-                                                            overall_slots_processed.fetch_sub(
-                                                                slot_delta,
-                                                                Ordering::Relaxed,
-                                                            );
-                                                        }
-                                                        if let Some((
-                                                            prev_slots_processed,
-                                                            prev_blocks_processed,
-                                                            prev_leader_skipped,
-                                                            prev_current_slot,
-                                                        )) = thread_stats_snapshot
-                                                        {
-                                                            thread_stats_ref.slots_processed =
-                                                                prev_slots_processed;
-                                                            thread_stats_ref.blocks_processed =
-                                                                prev_blocks_processed;
-                                                            thread_stats_ref.leader_skipped_slots =
-                                                                prev_leader_skipped;
-                                                            thread_stats_ref.current_slot =
-                                                                prev_current_slot;
-                                                        } else {
-                                                            if slot_delta > 0 {
-                                                                thread_stats_ref.slots_processed =
-                                                                    thread_stats_ref
-                                                                        .slots_processed
-                                                                        .saturating_sub(slot_delta);
-                                                                if block_delta > 0 {
-                                                                    thread_stats_ref.current_slot =
-                                                                        prev_last_counted_slot;
-                                                                }
-                                                            }
-                                                            if block_delta > 0 {
-                                                                thread_stats_ref.blocks_processed =
-                                                                    thread_stats_ref
-                                                                        .blocks_processed
-                                                                        .saturating_sub(1);
-                                                            }
-                                                            if leader_skip_delta > 0 {
-                                                                thread_stats_ref.leader_skipped_slots =
-                                                                    thread_stats_ref
-                                                                        .leader_skipped_slots
-                                                                        .saturating_sub(
-                                                                            leader_skip_delta,
-                                                                        );
-                                                            }
-                                                        }
-                                                        last_counted_slot = prev_last_counted_slot;
-                                                        return Err(err);
+                                                        thread_stats_ref.slots_processed =
+                                                            prev_slots_processed;
+                                                        thread_stats_ref.blocks_processed =
+                                                            prev_blocks_processed;
+                                                        thread_stats_ref.leader_skipped_slots =
+                                                            prev_leader_skipped;
+                                                        thread_stats_ref.current_slot =
+                                                            prev_current_slot;
                                                     }
+                                                    last_counted_slot = prev_last_counted_slot;
+                                                    return Err(err);
                                                 }
                                             }
                                         }
                                     }
+
+                                    last_counted_slot = slot;
                                 }
                                 Subset(_subset) => (),
                                 Epoch(_epoch) => (),
@@ -1297,31 +1240,31 @@ where
                             return Ok(());
                         }
                     }
-                    if let Some(expected_last_slot) = slot_range.end.checked_sub(1) {
-                        if last_counted_slot < expected_last_slot {
-                            let flush_start = last_counted_slot.saturating_add(1);
-                            if block_enabled {
-                                if let Some(on_block_cb) = on_block.as_ref() {
-                                    let error_slot = current_slot.unwrap_or(slot_range.start);
-                                    for skipped_slot in flush_start..=expected_last_slot {
-                                        log::debug!(
-                                            target: &log_target,
-                                            "leader skipped slot {} during final flush (prev_counted {})",
-                                            skipped_slot,
-                                            last_counted_slot,
-                                        );
-                                        on_block_cb(
-                                            thread_index,
-                                            BlockData::LeaderSkipped { slot: skipped_slot },
-                                        )
-                                        .await
-                                        .map_err(|e| FirehoseError::BlockHandlerError(e))
-                                        .map_err(|e| (e, error_slot))?;
+                    if tracking_enabled {
+                        if let Some(expected_last_slot) = slot_range.end.checked_sub(1) {
+                            if last_counted_slot < expected_last_slot {
+                                let flush_start = last_counted_slot.saturating_add(1);
+                                if block_enabled {
+                                    if let Some(on_block_cb) = on_block.as_ref() {
+                                        let error_slot = current_slot.unwrap_or(slot_range.start);
+                                        for skipped_slot in flush_start..=expected_last_slot {
+                                            log::debug!(
+                                                target: &log_target,
+                                                "leader skipped slot {} during final flush (prev_counted {})",
+                                                skipped_slot,
+                                                last_counted_slot,
+                                            );
+                                            on_block_cb(
+                                                thread_index,
+                                                BlockData::LeaderSkipped { slot: skipped_slot },
+                                            )
+                                            .await
+                                            .map_err(|e| FirehoseError::BlockHandlerError(e))
+                                            .map_err(|e| (e, error_slot))?;
+                                        }
                                     }
                                 }
-                            }
-                            let missing_slots = expected_last_slot.saturating_sub(last_counted_slot);
-                            if tracking_enabled {
+                                let missing_slots = expected_last_slot.saturating_sub(last_counted_slot);
                                 if let Some(stats_ref) = thread_stats.as_mut() {
                                     stats_ref.leader_skipped_slots += missing_slots;
                                     stats_ref.slots_processed += missing_slots;
@@ -1329,8 +1272,8 @@ where
                                 }
                                 overall_slots_processed.fetch_add(missing_slots, Ordering::Relaxed);
                                 slots_since_stats.fetch_add(missing_slots, Ordering::Relaxed);
+                                last_counted_slot = expected_last_slot;
                             }
-                            last_counted_slot = expected_last_slot;
                         }
                     }
                     if let Some(ref mut stats) = thread_stats {

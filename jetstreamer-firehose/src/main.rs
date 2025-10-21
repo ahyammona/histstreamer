@@ -20,8 +20,9 @@ fn main() {
     } else {
         let epoch: u64 = first_arg.parse().expect("failed to parse epoch");
         log::info!(target: LOG_MODULE, "epoch: {}", epoch);
-        let (start_slot, end_slot) = jetstreamer_firehose::epochs::epoch_to_slot_range(epoch);
-        start_slot..end_slot
+        let (start_slot, end_slot_inclusive) =
+            jetstreamer_firehose::epochs::epoch_to_slot_range(epoch);
+        start_slot..(end_slot_inclusive + 1)
     };
     let geyser_config_files = &[std::path::PathBuf::from(args().nth(2).unwrap())];
     log::info!(target: LOG_MODULE, "slot index base url: {}", index_base_url);
