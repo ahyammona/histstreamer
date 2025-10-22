@@ -5,6 +5,19 @@ use std::{env, fs};
 
 fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let embed_clickhouse_rs = Path::new(&out_dir).join("embed_clickhouse.rs");
+
+    if env::var("DOCS_RS").is_ok() {
+        println!("cargo:warning=Skipping ClickHouse download while building on docs.rs");
+        fs::write(
+            &embed_clickhouse_rs,
+            "/// ClickHouse binary bytes are not bundled when building on docs.rs.\n\
+             pub const CLICKHOUSE_BINARY: &[u8] = &[];\n",
+        )
+        .unwrap();
+        return;
+    }
+
     let clickhouse_binary = out_dir.join("clickhouse");
 
     // Check if the ClickHouse binary exists
@@ -39,7 +52,6 @@ fn main() {
         println!("ClickHouse binary already exists. Skipping installation.");
     }
 
-    let embed_clickhouse_rs = Path::new(&out_dir).join("embed_clickhouse.rs");
     fs::write(
         &embed_clickhouse_rs,
         format!(
