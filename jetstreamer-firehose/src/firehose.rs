@@ -7,15 +7,17 @@ use solana_geyser_plugin_manager::{
     block_metadata_notifier_interface::BlockMetadataNotifier,
     geyser_plugin_service::GeyserPluginServiceError,
 };
+use solana_hash::Hash;
 use solana_ledger::entry_notifier_interface::EntryNotifier;
+use solana_pubkey::Pubkey;
 use solana_reward_info::RewardInfo;
 use solana_rpc::{
     optimistically_confirmed_bank_tracker::SlotNotification,
     transaction_notifier_interface::TransactionNotifier,
 };
 use solana_runtime::bank::{KeyedRewardsAndNumPartitions, RewardType};
-use solana_sdk::{hash::Hash, pubkey::Pubkey, transaction::VersionedTransaction};
-use solana_vote_program::id as vote_program_id;
+use solana_sdk_ids::vote::id as vote_program_id;
+use solana_transaction::versioned::VersionedTransaction;
 use std::{
     fmt::Display,
     future::Future,
@@ -340,7 +342,7 @@ pub struct TransactionData {
     /// Index of the transaction within the slot.
     pub transaction_slot_index: usize,
     /// Transaction signature.
-    pub signature: solana_sdk::signature::Signature,
+    pub signature: solana_signature::Signature,
     /// Hash of the transaction message.
     pub message_hash: Hash,
     /// Indicates whether the transaction is a vote.
@@ -1880,7 +1882,7 @@ fn is_simple_vote_transaction(versioned_tx: &VersionedTransaction) -> bool {
 
     if !matches!(
         versioned_tx.version(),
-        solana_sdk::transaction::TransactionVersion::Legacy(_)
+        solana_transaction::versioned::TransactionVersion::Legacy(_)
     ) {
         return false;
     }

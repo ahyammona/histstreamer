@@ -105,10 +105,10 @@ impl Transaction {
         serde_json::Value::from(map)
     }
 
-    /// Deserializes the transaction payload into a [`solana_sdk::transaction::VersionedTransaction`].
+    /// Deserializes the transaction payload into a [`solana_transaction::versioned::VersionedTransaction`].
     pub fn as_parsed(
         &self,
-    ) -> Result<solana_sdk::transaction::VersionedTransaction, Box<dyn Error>> {
+    ) -> Result<solana_transaction::versioned::VersionedTransaction, Box<dyn Error>> {
         Ok(deserialize(&self.data.data.to_vec())?)
     }
 
