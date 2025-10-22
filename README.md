@@ -191,31 +191,6 @@ For direct access to the stream of transactions/blocks/rewards etc, you can use 
 interface, which allows you to specify a number of async function callbacks that will receive
 transaction/block/reward/etc data on multiple threads in parallel.
 
-## Configuration
-
-The following configuration ENV vars are available across the Jetstreamer ecosystem:
-
-### JetstreamerRunner Config
-
-| Variable | Default | Effect |
-|----------|---------|--------|
-| `JETSTREAMER_CLICKHOUSE_DSN` | `http://localhost:8123` | HTTP(S) DSN passed to the embedded plugin runner for ClickHouse writes. Override to target a remote ClickHouse deployment. |
-| `JETSTREAMER_CLICKHOUSE_MODE` | `auto` | Controls ClickHouse integration. `auto` enables output and spawns the helper only for local DSNs, `remote` enables output without spawning the helper, `local` always requests the helper, and `off` disables ClickHouse entirely. |
-| `JETSTREAMER_THREADS` | `1` | Number of firehose ingestion threads. Increase based on CPU headroom and downstream sink capacity. |
-
-Helper spawning only occurs when both the mode allows it (`auto`/`local`) **and** the DSN
-points to `localhost` or `127.0.0.1`.
-
-### Firehose Config (also used by JetstreamerRunner)
-
-| Variable | Default | Effect |
-|----------|---------|--------|
-| `JETSTREAMER_COMPACT_INDEX_BASE_URL` | `https://files.old-faithful.net` | Base URL for compact CAR index artifacts. Point this at your own mirror to reduce load on the public archive. |
-| `JETSTREAMER_NETWORK` | `mainnet` | Network suffix appended to cache namespaces and index filenames (e.g., `testnet`). |
-
-Changing the network automatically segregates cache entries, allowing you to toggle between
-clusters without purging state.
-
 ## Epoch Feature Availability
 
 Old Faithful ledger snapshots vary in what metadata is available, because Solana as a
