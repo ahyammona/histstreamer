@@ -4,7 +4,8 @@ use clickhouse::{Client, Row};
 use futures_util::FutureExt;
 use log::error;
 use serde::{Deserialize, Serialize};
-use solana_sdk::{message::VersionedMessage, pubkey::Pubkey};
+use solana_message::VersionedMessage;
+use solana_pubkey::Pubkey;
 
 use crate::{Plugin, PluginFuture};
 use jetstreamer_firehose::firehose::{BlockData, TransactionData};
