@@ -4,3 +4,5 @@ pub mod instruction_tracking;
 pub mod program_tracking;
 /// Plugin that tracks per-slot pubkey mention counts for popularity analysis.
 pub mod pubkey_stats;
+/// Debug plugin: prints full transaction details to stdout for verification.
+pub mod tx_dump;

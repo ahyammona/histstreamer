@@ -133,7 +133,7 @@ use jetstreamer_plugin::{
     Plugin, PluginRunner, PluginRunnerError,
     plugins::{
         instruction_tracking::InstructionTrackingPlugin, program_tracking::ProgramTrackingPlugin,
-        pubkey_stats::PubkeyStatsPlugin,
+        pubkey_stats::PubkeyStatsPlugin, tx_dump::TxDumpPlugin,
     },
 };
 use std::sync::Arc;
@@ -628,6 +628,8 @@ pub enum BuiltinPlugin {
     InstructionTracking,
     /// Pubkey Stats.
     PubkeyStats,
+    /// Prints full transaction details to stdout (debug/verification only).
+    TxDump,
 }
 
 impl BuiltinPlugin {
@@ -636,6 +638,7 @@ impl BuiltinPlugin {
         Self::ProgramTracking,
         Self::InstructionTracking,
         Self::PubkeyStats,
+        Self::TxDump,
     ];
 
     /// The CLI flag name for this plugin, as accepted by `--with-plugin`.
@@ -644,6 +647,7 @@ impl BuiltinPlugin {
             Self::ProgramTracking => "program-tracking",
             Self::InstructionTracking => "instruction-tracking",
             Self::PubkeyStats => "pubkey-stats",
+            Self::TxDump => "tx-dump",
         }
     }
 
@@ -656,6 +660,7 @@ impl BuiltinPlugin {
             Self::ProgramTracking => Box::new(ProgramTrackingPlugin::new()),
             Self::InstructionTracking => Box::new(InstructionTrackingPlugin::new()),
             Self::PubkeyStats => Box::new(PubkeyStatsPlugin::new()),
+            Self::TxDump => Box::new(TxDumpPlugin::new()),
         }
     }
 }
