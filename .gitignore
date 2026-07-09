@@ -3,3 +3,7 @@
 /.serena
 .DS_Store
 
+clickhouse.1
+clickhouse.1
+target/
+store/
