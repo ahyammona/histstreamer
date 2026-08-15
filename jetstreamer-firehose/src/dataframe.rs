@@ -4,16 +4,8 @@ use {
     std::vec::Vec,
 };
 
-// type DataFrame struct {
-// 	Kind  int
-// 	Hash  **int
-// 	Index **int
-// 	Total **int
-// 	Data  []uint8
-// 	Next  **List__Link
-// }
-/// Representation of a `Kind::DataFrame` node from the firehose.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+/// Representation of a `Kind::DataFrame` node from the firehose.
 pub struct DataFrame {
     /// Kind discriminator copied from the CBOR payload.
     pub kind: u64,

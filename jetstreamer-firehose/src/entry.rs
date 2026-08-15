@@ -7,23 +7,16 @@ use {
     cid::Cid,
     std::vec::Vec,
 };
-
-// type Entry struct {
-// 	Kind         int
-// 	NumHashes    int
-// 	Hash         []uint8
-// 	Transactions List__Link
-// }
-/// Representation of a `Kind::Entry` node emitted by the firehose.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+/// A single entry in the blockchain, containing transactions and metadata
 pub struct Entry {
     /// Kind discriminator copied from the CBOR payload.
     pub kind: u64,
-    /// Number of hashes stored in the entry.
+    /// Number of hashes since the previous entry (PoH tick count).
     pub num_hashes: u64,
-    /// Entry hash encoded as bytes.
+    /// The hash of this entry   
     pub hash: Hash,
-    /// Transactions referenced by this entry.
+    /// CIDs of transactions contained in this entry
     pub transactions: Vec<Cid>,
 }
 

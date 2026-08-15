@@ -132,8 +132,8 @@ use jetstreamer_firehose::{epochs::slot_to_epoch, index::get_index_base_url};
 use jetstreamer_plugin::{
     Plugin, PluginRunner, PluginRunnerError,
     plugins::{
-        instruction_tracking::InstructionTrackingPlugin, program_tracking::ProgramTrackingPlugin,
-        pubkey_stats::PubkeyStatsPlugin, tx_dump::TxDumpPlugin,
+        instruction_tracking::InstructionTrackingPlugin, mint_index::MintIndexPlugin,
+        program_tracking::ProgramTrackingPlugin, pubkey_stats::PubkeyStatsPlugin,
     },
 };
 use std::sync::Arc;
@@ -628,8 +628,8 @@ pub enum BuiltinPlugin {
     InstructionTracking,
     /// Pubkey Stats.
     PubkeyStats,
-    /// Prints full transaction details to stdout (debug/verification only).
-    TxDump,
+    /// Mint Index.
+    MintIndex,
 }
 
 impl BuiltinPlugin {
@@ -638,7 +638,7 @@ impl BuiltinPlugin {
         Self::ProgramTracking,
         Self::InstructionTracking,
         Self::PubkeyStats,
-        Self::TxDump,
+        Self::MintIndex,
     ];
 
     /// The CLI flag name for this plugin, as accepted by `--with-plugin`.
@@ -647,7 +647,7 @@ impl BuiltinPlugin {
             Self::ProgramTracking => "program-tracking",
             Self::InstructionTracking => "instruction-tracking",
             Self::PubkeyStats => "pubkey-stats",
-            Self::TxDump => "tx-dump",
+            Self::MintIndex => "mint-index",
         }
     }
 
@@ -660,7 +660,7 @@ impl BuiltinPlugin {
             Self::ProgramTracking => Box::new(ProgramTrackingPlugin::new()),
             Self::InstructionTracking => Box::new(InstructionTrackingPlugin::new()),
             Self::PubkeyStats => Box::new(PubkeyStatsPlugin::new()),
-            Self::TxDump => Box::new(TxDumpPlugin::new()),
+            Self::MintIndex => Box::new(MintIndexPlugin::new()),
         }
     }
 }

@@ -6,3 +6,5 @@ pub mod program_tracking;
 pub mod pubkey_stats;
 /// Debug plugin: prints full transaction details to stdout for verification.
 pub mod tx_dump;
+/// Indexes transactions and accounts by mint address for historical queries
+pub mod mint_index;
